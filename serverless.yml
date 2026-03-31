@@ -1,43 +1,81 @@
-service: network-infra
+service: sample-serverless
 
 provider:
   name: aws
-  region: ap-south-1
+  runtime: nodejs18.x
+  region: ${opt:region, 'ap-south-2'}
+  stage: ${opt:stage, 'prod'}
+
+  environment:
+    TABLE_NAME: serverless-cdktable-${self:provider.region}
+    BUCKET_NAME: serverless-cdk-${self:provider.region}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+          Resource:
+            Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/serverless-cdktable-${self:provider.region}
+
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+          Resource:
+            Fn::Sub: arn:aws:s3:::my-serverless-bucket-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}/*
+
+        - Effect: Allow
+          Action:
+            - logs:*
+          Resource: "*"
+
+  vpc:
+    securityGroupIds:
+      - !Ref LambdaSecurityGroup
+    subnetIds:
+      - !Ref PrivateSubnet1
+
+functions:
+  hello:
+    handler: handler.hello
+    timeout: 10
+    events:
+      - http:
+          path: hello
+          method: get
 
 resources:
   Resources:
 
-    # VPC
+    # ---------------- VPC ----------------
     MyVPC:
       Type: AWS::EC2::VPC
       Properties:
         CidrBlock: 10.0.0.0/16
-        EnableDnsSupport: true
-        EnableDnsHostnames: true
-        Tags:
-          - Key: Name
-            Value: MyVPC
 
-    # Internet Gateway
-    MyInternetGateway:
+    # ---------------- INTERNET GATEWAY ----------------
+    InternetGateway:
       Type: AWS::EC2::InternetGateway
 
     AttachGateway:
       Type: AWS::EC2::VPCGatewayAttachment
       Properties:
         VpcId: !Ref MyVPC
-        InternetGatewayId: !Ref MyInternetGateway
+        InternetGatewayId: !Ref InternetGateway
 
-    # Public Subnet
+    # ---------------- PUBLIC SUBNET (BASTION) ----------------
     PublicSubnet:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
-        CidrBlock: 10.0.1.0/24
+        CidrBlock: 10.0.10.0/24
         MapPublicIpOnLaunch: true
-        AvailabilityZone: ap-south-1a
+        AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
 
-    # Route Table
     PublicRouteTable:
       Type: AWS::EC2::RouteTable
       Properties:
@@ -49,33 +87,87 @@ resources:
       Properties:
         RouteTableId: !Ref PublicRouteTable
         DestinationCidrBlock: 0.0.0.0/0
-        GatewayId: !Ref MyInternetGateway
+        GatewayId: !Ref InternetGateway
 
-    SubnetRouteTableAssociation:
+    PublicSubnetRouteTableAssociation:
       Type: AWS::EC2::SubnetRouteTableAssociation
       Properties:
         SubnetId: !Ref PublicSubnet
         RouteTableId: !Ref PublicRouteTable
 
-    # Security Group
-    BastionSG:
+    # ---------------- PRIVATE SUBNET ----------------
+    PrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.1.0/24
+        AvailabilityZone:
+          Fn::Select:
+            - 0
+            - Fn::GetAZs: ""
+
+    # ---------------- SECURITY GROUPS ----------------
+
+    # Bastion SG (SSH)
+    BastionSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupDescription: Allow SSH
+        GroupDescription: Bastion SG
         VpcId: !Ref MyVPC
         SecurityGroupIngress:
           - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
-            CidrIp: 0.0.0.0/0
+            CidrIp: 49.204.141.47/32   # 🔥 CHANGE THIS
 
-    # Bastion EC2
+    # Lambda SG (Allow from Bastion)
+    LambdaSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Lambda SG
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: -1
+            SourceSecurityGroupId: !Ref BastionSecurityGroup
+
+    # ---------------- BASTION EC2 ----------------
     BastionHost:
       Type: AWS::EC2::Instance
       Properties:
         InstanceType: t2.micro
         SubnetId: !Ref PublicSubnet
         SecurityGroupIds:
-          - !Ref BastionSG
-        ImageId: ami-0f5ee92e2d63afc18   # Amazon Linux 2 (ap-south-1)
+          - !Ref BastionSecurityGroup
+        ImageId:
+          Fn::Sub: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
         KeyName: your-keypair-name   # 🔥 CHANGE THIS
+
+    # ---------------- S3 ----------------
+    MyS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName:
+          Fn::Sub: my-serverless-bucket-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}
+
+    # ---------------- DynamoDB ----------------
+    MyDynamoTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: serverless-cdktable-${self:provider.region}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+
+  Outputs:
+    BucketName:
+      Value: !Ref MyS3Bucket
+
+    TableName:
+      Value: !Ref MyDynamoTable
+
+    BastionPublicIP:
+      Value: !GetAtt BastionHost.PublicIp
