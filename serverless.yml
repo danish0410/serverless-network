@@ -1,0 +1,81 @@
+service: network-infra
+
+provider:
+  name: aws
+  region: ap-south-1
+
+resources:
+  Resources:
+
+    # VPC
+    MyVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        Tags:
+          - Key: Name
+            Value: MyVPC
+
+    # Internet Gateway
+    MyInternetGateway:
+      Type: AWS::EC2::InternetGateway
+
+    AttachGateway:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref MyVPC
+        InternetGatewayId: !Ref MyInternetGateway
+
+    # Public Subnet
+    PublicSubnet:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.1.0/24
+        MapPublicIpOnLaunch: true
+        AvailabilityZone: ap-south-1a
+
+    # Route Table
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref MyVPC
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      DependsOn: AttachGateway
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref MyInternetGateway
+
+    SubnetRouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet
+        RouteTableId: !Ref PublicRouteTable
+
+    # Security Group
+    BastionSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow SSH
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+
+    # Bastion EC2
+    BastionHost:
+      Type: AWS::EC2::Instance
+      Properties:
+        InstanceType: t2.micro
+        SubnetId: !Ref PublicSubnet
+        SecurityGroupIds:
+          - !Ref BastionSG
+        ImageId: ami-0f5ee92e2d63afc18   # Amazon Linux 2 (ap-south-1)
+        KeyName: your-keypair-name   # 🔥 CHANGE THIS
