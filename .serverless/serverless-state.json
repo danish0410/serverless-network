@@ -7,11 +7,11 @@
     "provider": {
       "name": "aws",
       "runtime": "nodejs18.x",
-      "region": "ap-south-1",
+      "region": "ap-south-2",
       "stage": "dev",
       "environment": {
-        "TABLE_NAME": "serverless-cdktable-ap-south-1",
-        "BUCKET_NAME": "serverless-cdk-ap-south-1"
+        "TABLE_NAME": "thani-table-ap-south-2",
+        "BUCKET_NAME": "thani-bucket-ap-south-2"
       },
       "iam": {
         "role": {
@@ -22,7 +22,7 @@
                 "dynamodb:PutItem"
               ],
               "Resource": {
-                "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/serverless-cdktable-ap-south-1"
+                "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/thani-table-ap-south-2"
               }
             },
             {
@@ -244,7 +244,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/sample-serverless/dev/1774965460605-2026-03-31T13:57:40.605Z/sample-serverless.zip"
+                "S3Key": "serverless/sample-serverless/dev/1775038191461-2026-04-01T10:09:51.461Z/sample-serverless.zip"
               },
               "Handler": "handler.hello",
               "Runtime": "nodejs18.x",
@@ -253,8 +253,8 @@
               "Timeout": 10,
               "Environment": {
                 "Variables": {
-                  "TABLE_NAME": "serverless-cdktable-ap-south-1",
-                  "BUCKET_NAME": "serverless-cdk-ap-south-1"
+                  "TABLE_NAME": "thani-table-ap-south-2",
+                  "BUCKET_NAME": "thani-bucket-ap-south-2"
                 }
               },
               "Role": {
@@ -276,14 +276,14 @@
               "HelloLogGroup"
             ]
           },
-          "HelloLambdaVersionwtgMEyWxmF4CgW88EawYt3isjGZ2vmhNNTRZhH9TY": {
+          "HelloLambdaVersionIl0I4xgsdQYyHhifnCCX7DuUhLFzCKi46ecnWg2lTI": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "HelloLambdaFunction"
               },
-              "CodeSha256": "G09sgkasJHyAJh6nFsuZ1PFRAsVLNIkVl1LCtzkul0U="
+              "CodeSha256": "MkX6nDHWJbNRACnGAea18c0N8HmOrp4NWpkIVUrz5gc="
             }
           },
           "ApiGatewayRestApi": {
@@ -359,7 +359,7 @@
               "HelloLambdaPermissionApiGateway"
             ]
           },
-          "ApiGatewayDeployment1774965443960": {
+          "ApiGatewayDeployment1775038172059": {
             "Type": "AWS::ApiGateway::Deployment",
             "Properties": {
               "RestApiId": {
@@ -411,7 +411,79 @@
           "MyVPC": {
             "Type": "AWS::EC2::VPC",
             "Properties": {
-              "CidrBlock": "10.0.0.0/16"
+              "CidrBlock": "10.0.0.0/16",
+              "Tags": [
+                {
+                  "Key": "Name",
+                  "Value": "thani-vpc"
+                }
+              ]
+            }
+          },
+          "InternetGateway": {
+            "Type": "AWS::EC2::InternetGateway"
+          },
+          "AttachGateway": {
+            "Type": "AWS::EC2::VPCGatewayAttachment",
+            "Properties": {
+              "VpcId": {
+                "Ref": "MyVPC"
+              },
+              "InternetGatewayId": {
+                "Ref": "InternetGateway"
+              }
+            }
+          },
+          "PublicSubnet": {
+            "Type": "AWS::EC2::Subnet",
+            "Properties": {
+              "VpcId": {
+                "Ref": "MyVPC"
+              },
+              "CidrBlock": "10.0.10.0/24",
+              "MapPublicIpOnLaunch": true,
+              "AvailabilityZone": {
+                "Fn::Select": [
+                  0,
+                  {
+                    "Fn::GetAZs": ""
+                  }
+                ]
+              }
+            }
+          },
+          "PublicRouteTable": {
+            "Type": "AWS::EC2::RouteTable",
+            "Properties": {
+              "VpcId": {
+                "Ref": "MyVPC"
+              }
+            }
+          },
+          "PublicRoute": {
+            "Type": "AWS::EC2::Route",
+            "DependsOn": [
+              "AttachGateway"
+            ],
+            "Properties": {
+              "RouteTableId": {
+                "Ref": "PublicRouteTable"
+              },
+              "DestinationCidrBlock": "0.0.0.0/0",
+              "GatewayId": {
+                "Ref": "InternetGateway"
+              }
+            }
+          },
+          "PublicSubnetRouteTableAssociation": {
+            "Type": "AWS::EC2::SubnetRouteTableAssociation",
+            "Properties": {
+              "SubnetId": {
+                "Ref": "PublicSubnet"
+              },
+              "RouteTableId": {
+                "Ref": "PublicRouteTable"
+              }
             }
           },
           "PrivateSubnet1": {
@@ -431,27 +503,76 @@
               }
             }
           },
+          "BastionSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+              "GroupDescription": "Bastion SG",
+              "VpcId": {
+                "Ref": "MyVPC"
+              },
+              "SecurityGroupIngress": [
+                {
+                  "IpProtocol": "tcp",
+                  "FromPort": 22,
+                  "ToPort": 22,
+                  "CidrIp": "49.204.141.47/32"
+                }
+              ]
+            }
+          },
           "LambdaSecurityGroup": {
             "Type": "AWS::EC2::SecurityGroup",
             "Properties": {
               "GroupDescription": "Lambda SG",
               "VpcId": {
                 "Ref": "MyVPC"
-              }
+              },
+              "SecurityGroupIngress": [
+                {
+                  "IpProtocol": -1,
+                  "SourceSecurityGroupId": {
+                    "Ref": "BastionSecurityGroup"
+                  }
+                }
+              ]
+            }
+          },
+          "BastionHost": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+              "InstanceType": "t3.micro",
+              "SubnetId": {
+                "Ref": "PublicSubnet"
+              },
+              "SecurityGroupIds": [
+                {
+                  "Ref": "BastionSecurityGroup"
+                }
+              ],
+              "ImageId": {
+                "Fn::Sub": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+              },
+              "KeyName": "key-ap-south-2",
+              "Tags": [
+                {
+                  "Key": "Name",
+                  "Value": "thani-bastion"
+                }
+              ]
             }
           },
           "MyS3Bucket": {
             "Type": "AWS::S3::Bucket",
             "Properties": {
               "BucketName": {
-                "Fn::Sub": "my-serverless-bucket-dev-${AWS::AccountId}-${AWS::Region}"
+                "Fn::Sub": "thani-bucket-dev-${AWS::AccountId}-${AWS::Region}"
               }
             }
           },
           "MyDynamoTable": {
             "Type": "AWS::DynamoDB::Table",
             "Properties": {
-              "TableName": "serverless-cdktable-ap-south-1",
+              "TableName": "thani-table-ap-south-2",
               "BillingMode": "PAY_PER_REQUEST",
               "AttributeDefinitions": [
                 {
@@ -480,7 +601,7 @@
           "HelloLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "HelloLambdaVersionwtgMEyWxmF4CgW88EawYt3isjGZ2vmhNNTRZhH9TY"
+              "Ref": "HelloLambdaVersionIl0I4xgsdQYyHhifnCCX7DuUhLFzCKi46ecnWg2lTI"
             },
             "Export": {
               "Name": "sls-sample-serverless-dev-HelloLambdaFunctionQualifiedArn"
@@ -520,6 +641,14 @@
           "TableName": {
             "Value": {
               "Ref": "MyDynamoTable"
+            }
+          },
+          "BastionPublicIP": {
+            "Value": {
+              "Fn::GetAtt": [
+                "BastionHost",
+                "PublicIp"
+              ]
             }
           }
         }
@@ -607,6 +736,15 @@
         }
       }
     },
+    "custom": {
+      "config": {
+        "app": {
+          "name": "thani"
+        }
+      },
+      "appName": "thani",
+      "keyName": "key-ap-south-2"
+    },
     "pluginsData": {},
     "functions": {
       "hello": {
@@ -626,7 +764,7 @@
         "memory": 1024,
         "runtime": "nodejs18.x",
         "vpc": {},
-        "versionLogicalId": "HelloLambdaVersionwtgMEyWxmF4CgW88EawYt3isjGZ2vmhNNTRZhH9TY"
+        "versionLogicalId": "HelloLambdaVersionIl0I4xgsdQYyHhifnCCX7DuUhLFzCKi46ecnWg2lTI"
       }
     },
     "resources": {
@@ -634,7 +772,79 @@
         "MyVPC": {
           "Type": "AWS::EC2::VPC",
           "Properties": {
-            "CidrBlock": "10.0.0.0/16"
+            "CidrBlock": "10.0.0.0/16",
+            "Tags": [
+              {
+                "Key": "Name",
+                "Value": "thani-vpc"
+              }
+            ]
+          }
+        },
+        "InternetGateway": {
+          "Type": "AWS::EC2::InternetGateway"
+        },
+        "AttachGateway": {
+          "Type": "AWS::EC2::VPCGatewayAttachment",
+          "Properties": {
+            "VpcId": {
+              "Ref": "MyVPC"
+            },
+            "InternetGatewayId": {
+              "Ref": "InternetGateway"
+            }
+          }
+        },
+        "PublicSubnet": {
+          "Type": "AWS::EC2::Subnet",
+          "Properties": {
+            "VpcId": {
+              "Ref": "MyVPC"
+            },
+            "CidrBlock": "10.0.10.0/24",
+            "MapPublicIpOnLaunch": true,
+            "AvailabilityZone": {
+              "Fn::Select": [
+                0,
+                {
+                  "Fn::GetAZs": ""
+                }
+              ]
+            }
+          }
+        },
+        "PublicRouteTable": {
+          "Type": "AWS::EC2::RouteTable",
+          "Properties": {
+            "VpcId": {
+              "Ref": "MyVPC"
+            }
+          }
+        },
+        "PublicRoute": {
+          "Type": "AWS::EC2::Route",
+          "DependsOn": [
+            "AttachGateway"
+          ],
+          "Properties": {
+            "RouteTableId": {
+              "Ref": "PublicRouteTable"
+            },
+            "DestinationCidrBlock": "0.0.0.0/0",
+            "GatewayId": {
+              "Ref": "InternetGateway"
+            }
+          }
+        },
+        "PublicSubnetRouteTableAssociation": {
+          "Type": "AWS::EC2::SubnetRouteTableAssociation",
+          "Properties": {
+            "SubnetId": {
+              "Ref": "PublicSubnet"
+            },
+            "RouteTableId": {
+              "Ref": "PublicRouteTable"
+            }
           }
         },
         "PrivateSubnet1": {
@@ -654,27 +864,76 @@
             }
           }
         },
+        "BastionSecurityGroup": {
+          "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupDescription": "Bastion SG",
+            "VpcId": {
+              "Ref": "MyVPC"
+            },
+            "SecurityGroupIngress": [
+              {
+                "IpProtocol": "tcp",
+                "FromPort": 22,
+                "ToPort": 22,
+                "CidrIp": "49.204.141.47/32"
+              }
+            ]
+          }
+        },
         "LambdaSecurityGroup": {
           "Type": "AWS::EC2::SecurityGroup",
           "Properties": {
             "GroupDescription": "Lambda SG",
             "VpcId": {
               "Ref": "MyVPC"
-            }
+            },
+            "SecurityGroupIngress": [
+              {
+                "IpProtocol": -1,
+                "SourceSecurityGroupId": {
+                  "Ref": "BastionSecurityGroup"
+                }
+              }
+            ]
+          }
+        },
+        "BastionHost": {
+          "Type": "AWS::EC2::Instance",
+          "Properties": {
+            "InstanceType": "t3.micro",
+            "SubnetId": {
+              "Ref": "PublicSubnet"
+            },
+            "SecurityGroupIds": [
+              {
+                "Ref": "BastionSecurityGroup"
+              }
+            ],
+            "ImageId": {
+              "Fn::Sub": "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
+            },
+            "KeyName": "key-ap-south-2",
+            "Tags": [
+              {
+                "Key": "Name",
+                "Value": "thani-bastion"
+              }
+            ]
           }
         },
         "MyS3Bucket": {
           "Type": "AWS::S3::Bucket",
           "Properties": {
             "BucketName": {
-              "Fn::Sub": "my-serverless-bucket-dev-${AWS::AccountId}-${AWS::Region}"
+              "Fn::Sub": "thani-bucket-dev-${AWS::AccountId}-${AWS::Region}"
             }
           }
         },
         "MyDynamoTable": {
           "Type": "AWS::DynamoDB::Table",
           "Properties": {
-            "TableName": "serverless-cdktable-ap-south-1",
+            "TableName": "thani-table-ap-south-2",
             "BillingMode": "PAY_PER_REQUEST",
             "AttributeDefinitions": [
               {
@@ -701,6 +960,14 @@
           "Value": {
             "Ref": "MyDynamoTable"
           }
+        },
+        "BastionPublicIP": {
+          "Value": {
+            "Fn::GetAtt": [
+              "BastionHost",
+              "PublicIp"
+            ]
+          }
         }
       }
     },
@@ -708,6 +975,9 @@
     "serviceFilename": "serverless.yml",
     "initialServerlessConfig": {
       "service": "sample-serverless",
+      "custom": {
+        "$ref": "$[\"service\"][\"custom\"]"
+      },
       "provider": {
         "$ref": "$[\"service\"][\"provider\"]"
       },
@@ -723,7 +993,7 @@
     "artifact": "/home/thani/github/serverless-network/.serverless/sample-serverless.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/sample-serverless/dev/1774965460605-2026-03-31T13:57:40.605Z",
+    "artifactDirectoryName": "serverless/sample-serverless/dev/1775038191461-2026-04-01T10:09:51.461Z",
     "artifact": "sample-serverless.zip"
   }
 }

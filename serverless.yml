@@ -1,5 +1,10 @@
 service: sample-serverless
 
+custom:
+  config: ${file(config.yml)}
+  appName: ${self:custom.config.app.name}
+  keyName: key-${self:provider.region}  # ✅ Dynamic KeyPair
+
 provider:
   name: aws
   runtime: nodejs18.x
@@ -7,8 +12,11 @@ provider:
   stage: ${opt:stage, 'prod'}
 
   environment:
-    TABLE_NAME: serverless-cdktable-${self:provider.region}
-    BUCKET_NAME: serverless-cdk-${self:provider.region}
+    TABLE_NAME: ${self:custom.appName}-table-${self:provider.region}
+    BUCKET_NAME: ${self:custom.appName}-bucket-${self:provider.region}
+
+    # TABLE_NAME: serverless-cdktable-${self:provider.region}
+    # BUCKET_NAME: serverless-cdk-${self:provider.region}
 
   iam:
     role:
@@ -17,7 +25,7 @@ provider:
           Action:
             - dynamodb:PutItem
           Resource:
-            Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/serverless-cdktable-${self:provider.region}
+            Fn::Sub: arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${self:custom.appName}-table-${self:provider.region}
 
         - Effect: Allow
           Action:
@@ -53,6 +61,9 @@ resources:
       Type: AWS::EC2::VPC
       Properties:
         CidrBlock: 10.0.0.0/16
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-vpc
 
     # ---------------- INTERNET GATEWAY ----------------
     InternetGateway:
@@ -64,7 +75,7 @@ resources:
         VpcId: !Ref MyVPC
         InternetGatewayId: !Ref InternetGateway
 
-    # ---------------- PUBLIC SUBNET (BASTION) ----------------
+    # ---------------- PUBLIC SUBNET ----------------
     PublicSubnet:
       Type: AWS::EC2::Subnet
       Properties:
@@ -108,7 +119,6 @@ resources:
 
     # ---------------- SECURITY GROUPS ----------------
 
-    # Bastion SG (SSH)
     BastionSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -118,9 +128,8 @@ resources:
           - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
-            CidrIp: 49.204.141.47/32   # 🔥 CHANGE THIS
+            CidrIp: 49.204.141.47/32   # 🔥 CHANGE YOUR IP
 
-    # Lambda SG (Allow from Bastion)
     LambdaSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -134,26 +143,29 @@ resources:
     BastionHost:
       Type: AWS::EC2::Instance
       Properties:
-        InstanceType: t2.micro
+        InstanceType: t3.micro
         SubnetId: !Ref PublicSubnet
         SecurityGroupIds:
           - !Ref BastionSecurityGroup
         ImageId:
           Fn::Sub: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
-        KeyName: your-keypair-name   # 🔥 CHANGE THIS
+        KeyName: ${self:custom.keyName}
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-bastion
 
     # ---------------- S3 ----------------
     MyS3Bucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName:
-          Fn::Sub: my-serverless-bucket-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}
+          Fn::Sub: ${self:custom.appName}-bucket-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}
 
     # ---------------- DynamoDB ----------------
     MyDynamoTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: serverless-cdktable-${self:provider.region}
+        TableName: ${self:custom.appName}-table-${self:provider.region}
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: id
