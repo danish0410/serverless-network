@@ -6,3 +6,14 @@ node_modules
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+# Serverless build files
+.serverless/
+
+# Node modules
+node_modules/
+
+# Config & secrets
+config.yml
+
+# PEM keys (IMPORTANT 🔥)
+*.pem
