@@ -3,6 +3,7 @@ service: sample-serverless
 custom:
   config: ${file(config.yml)}
   appName: ${self:custom.config.app.name}
+  regionConfig: ${self:custom.config.regions.${self:provider.region}, self:custom.config.regions.default}
   keyName: key-${self:provider.region}  # ✅ Dynamic KeyPair
 
 provider:
@@ -60,10 +61,10 @@ resources:
     MyVPC:
       Type: AWS::EC2::VPC
       Properties:
-        CidrBlock: 10.0.0.0/16
+        CidrBlock: ${self:custom.regionConfig.cidr}
         Tags:
           - Key: Name
-            Value: ${self:custom.appName}-vpc
+            Value: ${self:custom.appName}-${self:provider.region}-vpc
 
     # ---------------- INTERNET GATEWAY ----------------
     InternetGateway:
@@ -80,7 +81,7 @@ resources:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
-        CidrBlock: 10.0.10.0/24
+        CidrBlock: ${self:custom.regionConfig.publicSubnet}
         MapPublicIpOnLaunch: true
         AvailabilityZone:
           Fn::Select:
@@ -111,7 +112,7 @@ resources:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
-        CidrBlock: 10.0.1.0/24
+        CidrBlock: ${self:custom.regionConfig.privateSubnet}
         AvailabilityZone:
           Fn::Select:
             - 0
@@ -143,7 +144,7 @@ resources:
     BastionHost:
       Type: AWS::EC2::Instance
       Properties:
-        InstanceType: t3.micro
+        InstanceType: ${self:custom.regionConfig.instanceType}
         SubnetId: !Ref PublicSubnet
         SecurityGroupIds:
           - !Ref BastionSecurityGroup
@@ -152,20 +153,20 @@ resources:
         KeyName: ${self:custom.keyName}
         Tags:
           - Key: Name
-            Value: ${self:custom.appName}-bastion
+            Value: ${self:custom.appName}-${self:provider.region}-bastion
 
     # ---------------- S3 ----------------
     MyS3Bucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName:
-          Fn::Sub: ${self:custom.appName}-bucket-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}
+          Fn::Sub: ${self:custom.appName}-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}
 
     # ---------------- DynamoDB ----------------
     MyDynamoTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:custom.appName}-table-${self:provider.region}
+        TableName: ${self:custom.appName}-${self:provider.region}-table
         BillingMode: PAY_PER_REQUEST
         AttributeDefinitions:
           - AttributeName: id
