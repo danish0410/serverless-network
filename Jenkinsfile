@@ -17,7 +17,7 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 bat '''
-                npm install -g serverless
+                // npm install -g serverless
                 // npm install -g aws-cdk
                 npm install
                 '''
@@ -27,7 +27,8 @@ pipeline {
         stage('Build CDK') {
             steps {
                 bat '''
-                npm run build
+                // npm run build
+                npx tsc
                 '''
             }
         }
