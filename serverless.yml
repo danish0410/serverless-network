@@ -1,7 +1,8 @@
 service: sample-serverless
 
 custom:
-  config: ${file(config.yml)}
+  config: ${file(./config.yml)}
+  # config: ${file(config.yml)}
   appName: ${self:custom.config.app.name}
   regionConfig: ${self:custom.config.regions.${self:provider.region}, self:custom.config.regions.default}
   keyName: key-${self:provider.region}  # ✅ Dynamic KeyPair
@@ -81,7 +82,8 @@ resources:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
-        CidrBlock: ${self:custom.regionConfig.publicSubnet}
+        # CidrBlock: ${self:custom.regionConfig.publicSubnet}
+        CidrBlock: ${self:custom.config.regions.${opt:region}.cidr}
         MapPublicIpOnLaunch: true
         AvailabilityZone:
           Fn::Select:
