@@ -9,13 +9,13 @@ regions:
     cidr: 10.0.0.0/16
     publicSubnet: 10.0.10.0/24
     privateSubnet: 10.0.1.0/24
-    instanceType: t2.micro
-
-  ap-south-2:
-    cidr: 10.1.0.0/16
-    publicSubnet: 10.1.10.0/24
-    privateSubnet: 10.1.1.0/24
     instanceType: t3.micro
+
+  # ap-south-2:
+  #   cidr: 10.1.0.0/16
+  #   publicSubnet: 10.1.10.0/24
+  #   privateSubnet: 10.1.1.0/24
+  #   instanceType: t3.micro
 
   us-east-1:
     cidr: 10.2.0.0/16
