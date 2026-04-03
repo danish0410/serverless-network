@@ -1,8 +1,5 @@
-# app:
-#   name: thani   # 🔥 CHANGE ONLY THIS
-
 app:
-  name: sample   # 🔥 CHANGE ONLY THIS
+  name: sample
 
 regions:
   default:
@@ -11,11 +8,11 @@ regions:
     privateSubnet: 10.0.1.0/24
     instanceType: t3.micro
 
-  # ap-south-2:
-  #   cidr: 10.1.0.0/16
-  #   publicSubnet: 10.1.10.0/24
-  #   privateSubnet: 10.1.1.0/24
-  #   instanceType: t3.micro
+  ap-south-2:
+    cidr: 10.11.0.0/16
+    publicSubnet: 10.11.10.0/24
+    privateSubnet: 10.11.1.0/24
+    instanceType: t3.micro
 
   us-east-1:
     cidr: 10.2.0.0/16
@@ -24,7 +21,7 @@ regions:
     instanceType: t3.medium
 
   us-east-2:
-  cidr: 10.3.0.0/16
-  publicSubnet: 10.3.10.0/24
-  privateSubnet: 10.3.1.0/24
-  instanceType: t3.medium
+    cidr: 10.3.0.0/16
+    publicSubnet: 10.3.10.0/24
+    privateSubnet: 10.3.1.0/24
+    instanceType: t3.medium

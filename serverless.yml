@@ -63,6 +63,7 @@ resources:
       Type: AWS::EC2::VPC
       Properties:
         CidrBlock: ${self:custom.regionConfig.cidr}
+        # CidrBlock: ${self:custom.config.regions.${self:custom.region}.cidr}
         Tags:
           - Key: Name
             Value: ${self:custom.appName}-${self:provider.region}-vpc
@@ -82,8 +83,8 @@ resources:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
-        # CidrBlock: ${self:custom.regionConfig.publicSubnet}
-        CidrBlock: ${self:custom.config.regions.${opt:region}.cidr}
+        CidrBlock: ${self:custom.regionConfig.publicSubnet}
+        # CidrBlock: ${self:custom.config.regions.${opt:region}.cidr}
         MapPublicIpOnLaunch: true
         AvailabilityZone:
           Fn::Select:
