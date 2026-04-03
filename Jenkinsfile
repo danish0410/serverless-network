@@ -18,7 +18,7 @@ pipeline {
             steps {
                 bat '''
                 npm install -g serverless
-                npm install -g aws-cdk
+                // npm install -g aws-cdk
                 npm install
                 '''
             }
