@@ -12,8 +12,5 @@ cdk.out
 # Node modules
 node_modules/
 
-# Config & secrets
-config.yml
-
 # PEM keys (IMPORTANT 🔥)
 *.pem
