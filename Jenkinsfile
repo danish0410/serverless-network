@@ -19,6 +19,12 @@ pipeline {
             defaultValue: 'ap-south-2,us-east-2',
             description: 'Comma-separated regions'
         )
+
+        string(
+            name: 'CIDR_IP',
+            defaultValue: '49.204.141.47/32',
+            description: 'Enter your IP in CIDR format (e.g., 1.2.3.4/32)'
+        )
     }
 
     stages {
@@ -55,7 +61,8 @@ pipeline {
                             bat """
                             npx serverless deploy ^
                               --region ${region} ^
-                              --stage ${params.STAGE}
+                              --stage ${params.STAGE} ^
+                              --param="cidrIp=${params.CIDR_IP}"
                             """
                         } else if (params.ACTION == 'remove') {
                             echo "🗑 Removing stack from ${region} (${params.STAGE})"
@@ -63,7 +70,8 @@ pipeline {
                             bat """
                             npx serverless remove ^
                               --region ${region} ^
-                              --stage ${params.STAGE}
+                              --stage ${params.STAGE} ^
+                              --param="cidrIp=${params.CIDR_IP}"
                             """
                         }
                     }
