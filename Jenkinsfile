@@ -33,6 +33,34 @@ pipeline {
 
     stages {
 
+        stage('Clean Workspace') {
+            steps {
+                script {
+                    echo "🧹 Cleaning workspace..."
+
+                    // Jenkins built-in cleanup
+                    cleanWs()
+
+                    // Extra safety cleanup (important for Serverless)
+                    if (isUnix()) {
+                        sh '''
+                        rm -rf node_modules
+                        rm -rf dist
+                        rm -rf .serverless
+                        rm -rf package-lock.json
+                        '''
+                    } else {
+                        bat '''
+                        rmdir /s /q node_modules
+                        rmdir /s /q dist
+                        rmdir /s /q .serverless
+                        del package-lock.json
+                        '''
+                    }
+                }
+            }
+        }
+
         stage('Validate Input') {
             steps {
                 script {
@@ -55,12 +83,18 @@ pipeline {
             }
             steps {
                 script {
+                    echo "📦 Installing dependencies..."
+
                     if (isUnix()) {
-                        sh 'npm install'
-                        sh 'npm install -g serverless'
+                        sh '''
+                        npm install
+                        npm install -g serverless
+                        '''
                     } else {
-                        bat 'npm install'
-                        bat 'npm install -g serverless'
+                        bat '''
+                        npm install
+                        npm install -g serverless
+                        '''
                     }
                 }
             }
@@ -72,10 +106,47 @@ pipeline {
             }
             steps {
                 script {
+                    echo "🔨 Building TypeScript..."
+
                     if (isUnix()) {
-                        sh 'npx tsc'
+                        sh '''
+                        npx tsc
+                        echo "📂 Checking dist folder..."
+                        ls -l dist
+                        '''
                     } else {
-                        bat 'npx tsc'
+                        bat '''
+                        npx tsc
+                        echo Checking dist folder...
+                        dir dist
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Verify Build Output') {
+            when {
+                expression { params.ACTION == 'deploy' }
+            }
+            steps {
+                script {
+                    echo "🔍 Verifying handler.js exists..."
+
+                    if (isUnix()) {
+                        sh '''
+                        if [ ! -f dist/handler.js ]; then
+                          echo "❌ handler.js not found in dist"
+                          exit 1
+                        fi
+                        '''
+                    } else {
+                        bat '''
+                        if not exist dist\\handler.js (
+                          echo ❌ handler.js not found in dist
+                          exit /b 1
+                        )
+                        '''
                     }
                 }
             }
@@ -152,6 +223,9 @@ pipeline {
         }
         failure {
             echo "❌ Pipeline failed"
+        }
+        always {
+            echo "🧾 Pipeline execution completed"
         }
     }
 }
