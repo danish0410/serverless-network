@@ -50,7 +50,8 @@ provider:
 
 functions:
   hello:
-    handler: handler.hello
+    # handler: handler.hello
+    handler: dist/handler.hello
     timeout: 10
     events:
       - httpApi:
@@ -173,9 +174,11 @@ resources:
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods:
               - GET
+              - HEAD
               - POST
               - PUT
               - DELETE
+              - PATCH
               - OPTIONS
             CachedMethods:
               - GET
