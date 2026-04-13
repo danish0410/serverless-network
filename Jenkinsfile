@@ -28,15 +28,13 @@ pipeline {
 
                 script {
                     if (isUnix()) {
-                        sh '''
-                        rm -rf node_modules dist .serverless package-lock.json
-                        '''
+                        sh 'rm -rf node_modules dist .serverless package-lock.json'
                     } else {
                         bat '''
-                        rmdir /s /q node_modules
-                        rmdir /s /q dist
-                        rmdir /s /q .serverless
-                        del package-lock.json
+                        rmdir /s /q node_modules 2>nul
+                        rmdir /s /q dist 2>nul
+                        rmdir /s /q .serverless 2>nul
+                        del package-lock.json 2>nul
                         '''
                     }
                 }
@@ -46,21 +44,50 @@ pipeline {
         stage('Install Dependencies') {
             when { expression { params.ACTION == 'deploy' } }
             steps {
-                sh 'npm install'
-                sh 'npm install -g serverless'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                        npm install
+                        npm install -g serverless
+                        '''
+                    } else {
+                        bat '''
+                        npm install
+                        npm install -g serverless
+                        '''
+                    }
+                }
             }
         }
 
         stage('Build') {
             when { expression { params.ACTION == 'deploy' } }
             steps {
-                sh 'npx tsc'
+                script {
+                    if (isUnix()) {
+                        sh 'npx tsc'
+                    } else {
+                        bat 'npx tsc'
+                    }
+                }
             }
         }
 
         stage('Debug Config') {
             steps {
-                sh 'cat serverless.yml || type serverless.yml'
+                script {
+                    if (isUnix()) {
+                        sh '''
+                        echo "Printing serverless config..."
+                        npx serverless print
+                        '''
+                    } else {
+                        bat '''
+                        echo Printing serverless config...
+                        npx serverless print
+                        '''
+                    }
+                }
             }
         }
 
@@ -73,22 +100,51 @@ pipeline {
                         region = region.trim()
 
                         if (params.ACTION == 'deploy') {
-                            sh """
-                            npx serverless deploy \
-                              --region ${region} \
-                              --stage ${params.STAGE} \
-                              --param="cidrIp=${params.CIDR_IP}"
-                            """
+
+                            if (isUnix()) {
+                                sh """
+                                npx serverless deploy \
+                                  --region ${region} \
+                                  --stage ${params.STAGE} \
+                                  --param="cidrIp=${params.CIDR_IP}"
+                                """
+                            } else {
+                                bat """
+                                npx serverless deploy ^
+                                  --region ${region} ^
+                                  --stage ${params.STAGE} ^
+                                  --param="cidrIp=${params.CIDR_IP}"
+                                """
+                            }
+
                         } else {
-                            sh """
-                            npx serverless remove \
-                              --region ${region} \
-                              --stage ${params.STAGE}
-                            """
+
+                            if (isUnix()) {
+                                sh """
+                                npx serverless remove \
+                                  --region ${region} \
+                                  --stage ${params.STAGE}
+                                """
+                            } else {
+                                bat """
+                                npx serverless remove ^
+                                  --region ${region} ^
+                                  --stage ${params.STAGE}
+                                """
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ ${params.ACTION} SUCCESS"
+        }
+        failure {
+            echo "❌ PIPELINE FAILED"
         }
     }
 }
