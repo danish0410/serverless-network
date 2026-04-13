@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        AWS_DEFAULT_REGION = 'ap-south-2'
+    }
+
     parameters {
         choice(
             name: 'ACTION',
@@ -23,18 +27,42 @@ pipeline {
         string(
             name: 'CIDR_IP',
             defaultValue: '49.204.141.47/32',
-            description: 'Enter your IP in CIDR format (e.g., 1.2.3.4/32)'
+            description: 'Enter your IP in CIDR format'
         )
     }
 
     stages {
+
+        stage('Validate Input') {
+            steps {
+                script {
+                    if (!params.REGIONS?.trim()) {
+                        error "❌ REGIONS parameter is empty"
+                    }
+
+                    if (!params.CIDR_IP?.trim()) {
+                        error "❌ CIDR_IP is required"
+                    }
+
+                    echo "✅ Inputs validated"
+                }
+            }
+        }
 
         stage('Install Dependencies') {
             when {
                 expression { params.ACTION == 'deploy' }
             }
             steps {
-                bat 'npm install'
+                script {
+                    if (isUnix()) {
+                        sh 'npm install'
+                        sh 'npm install -g serverless'
+                    } else {
+                        bat 'npm install'
+                        bat 'npm install -g serverless'
+                    }
+                }
             }
         }
 
@@ -43,7 +71,13 @@ pipeline {
                 expression { params.ACTION == 'deploy' }
             }
             steps {
-                bat 'npx tsc'
+                script {
+                    if (isUnix()) {
+                        sh 'npx tsc'
+                    } else {
+                        bat 'npx tsc'
+                    }
+                }
             }
         }
 
@@ -55,24 +89,56 @@ pipeline {
                     for (region in regions) {
                         region = region.trim()
 
+                        if (!region) {
+                            echo "⚠️ Skipping empty region"
+                            continue
+                        }
+
+                        echo "🌍 Processing region: ${region}"
+
                         if (params.ACTION == 'deploy') {
+
                             echo "🚀 Deploying to ${region} (${params.STAGE})"
 
-                            bat """
-                            npx serverless deploy ^
-                              --region ${region} ^
-                              --stage ${params.STAGE} ^
-                              --param="cidrIp=${params.CIDR_IP}"
-                            """
+                            if (isUnix()) {
+                                sh """
+                                npx serverless deploy \
+                                  --region ${region} \
+                                  --stage ${params.STAGE} \
+                                  --param="cidrIp=${params.CIDR_IP}" \
+                                  --verbose
+                                """
+                            } else {
+                                bat """
+                                npx serverless deploy ^
+                                  --region ${region} ^
+                                  --stage ${params.STAGE} ^
+                                  --param="cidrIp=${params.CIDR_IP}" ^
+                                  --verbose
+                                """
+                            }
+
                         } else if (params.ACTION == 'remove') {
+
                             echo "🗑 Removing stack from ${region} (${params.STAGE})"
 
-                            bat """
-                            npx serverless remove ^
-                              --region ${region} ^
-                              --stage ${params.STAGE} ^
-                              --param="cidrIp=${params.CIDR_IP}"
-                            """
+                            if (isUnix()) {
+                                sh """
+                                npx serverless remove \
+                                  --region ${region} \
+                                  --stage ${params.STAGE} \
+                                  --param="cidrIp=${params.CIDR_IP}" \
+                                  --verbose
+                                """
+                            } else {
+                                bat """
+                                npx serverless remove ^
+                                  --region ${region} ^
+                                  --stage ${params.STAGE} ^
+                                  --param="cidrIp=${params.CIDR_IP}" ^
+                                  --verbose
+                                """
+                            }
                         }
                     }
                 }

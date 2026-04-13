@@ -1,11 +1,10 @@
-service: sample-serverless
+service: rajasekar-serverless
 
 custom:
   config: ${file(./config.yml)}
-  # config: ${file(config.yml)}
   appName: ${self:custom.config.app.name}
   regionConfig: ${self:custom.config.regions.${self:provider.region}, self:custom.config.regions.default}
-  keyName: key-${self:provider.region}  # ✅ Dynamic KeyPair
+  keyName: key-${self:provider.region}
 
 provider:
   name: aws
@@ -13,12 +12,20 @@ provider:
   region: ${opt:region, 'ap-south-2'}
   stage: ${opt:stage, 'prod'}
 
+  # ✅ HTTP API
+  httpApi:
+    cors: true
+    authorizers:
+      cognitoAuth:
+        identitySource: $request.header.Authorization
+        issuerUrl:
+          Fn::Sub: https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+        audience:
+          - !Ref CognitoUserPoolClient
+
   environment:
     TABLE_NAME: ${self:custom.appName}-table-${self:provider.region}
     BUCKET_NAME: ${self:custom.appName}-bucket-${self:provider.region}
-
-    # TABLE_NAME: serverless-cdktable-${self:provider.region}
-    # BUCKET_NAME: serverless-cdk-${self:provider.region}
 
   iam:
     role:
@@ -33,12 +40,7 @@ provider:
           Action:
             - s3:PutObject
           Resource:
-            Fn::Sub: arn:aws:s3:::my-serverless-bucket-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}/*
-
-        - Effect: Allow
-          Action:
-            - logs:*
-          Resource: "*"
+            Fn::Sub: arn:aws:s3:::${self:custom.appName}-${self:provider.stage}-${AWS::AccountId}-${AWS::Region}/*
 
   vpc:
     securityGroupIds:
@@ -51,66 +53,47 @@ functions:
     handler: handler.hello
     timeout: 10
     events:
-      - http:
-          path: hello
-          method: get
+      - httpApi:
+          path: /hello
+          method: GET
+          authorizer:
+            name: cognitoAuth
 
 resources:
   Resources:
+
+    # ---------------- COGNITO ----------------
+    CognitoUserPool:
+      Type: AWS::Cognito::UserPool
+      Properties:
+        UserPoolName: ${self:custom.appName}-user-pool
+        AutoVerifiedAttributes:
+          - email
+
+    CognitoUserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        ClientName: ${self:custom.appName}-client
+        UserPoolId: !Ref CognitoUserPool
+        GenerateSecret: false
 
     # ---------------- VPC ----------------
     MyVPC:
       Type: AWS::EC2::VPC
       Properties:
         CidrBlock: ${self:custom.regionConfig.cidr}
-        # CidrBlock: ${self:custom.config.regions.${self:custom.region}.cidr}
-        Tags:
-          - Key: Name
-            Value: ${self:custom.appName}-${self:provider.region}-vpc
 
-    # ---------------- INTERNET GATEWAY ----------------
-    InternetGateway:
-      Type: AWS::EC2::InternetGateway
-
-    AttachGateway:
-      Type: AWS::EC2::VPCGatewayAttachment
-      Properties:
-        VpcId: !Ref MyVPC
-        InternetGatewayId: !Ref InternetGateway
-
-    # ---------------- PUBLIC SUBNET ----------------
     PublicSubnet:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: ${self:custom.regionConfig.publicSubnet}
-        # CidrBlock: ${self:custom.config.regions.${opt:region}.cidr}
         MapPublicIpOnLaunch: true
         AvailabilityZone:
           Fn::Select:
             - 0
             - Fn::GetAZs: ""
 
-    PublicRouteTable:
-      Type: AWS::EC2::RouteTable
-      Properties:
-        VpcId: !Ref MyVPC
-
-    PublicRoute:
-      Type: AWS::EC2::Route
-      DependsOn: AttachGateway
-      Properties:
-        RouteTableId: !Ref PublicRouteTable
-        DestinationCidrBlock: 0.0.0.0/0
-        GatewayId: !Ref InternetGateway
-
-    PublicSubnetRouteTableAssociation:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-        SubnetId: !Ref PublicSubnet
-        RouteTableId: !Ref PublicRouteTable
-
-    # ---------------- PRIVATE SUBNET ----------------
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
       Properties:
@@ -122,7 +105,6 @@ resources:
             - Fn::GetAZs: ""
 
     # ---------------- SECURITY GROUPS ----------------
-
     BastionSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
@@ -132,18 +114,15 @@ resources:
           - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
-            CidrIp: ${param:cidrIp}   # ✅ Dynamic from Jenkins
+            CidrIp: ${param:cidrIp}
 
     LambdaSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
         GroupDescription: Lambda SG
         VpcId: !Ref MyVPC
-        SecurityGroupIngress:
-          - IpProtocol: -1
-            SourceSecurityGroupId: !Ref BastionSecurityGroup
 
-    # ---------------- BASTION EC2 ----------------
+    # ---------------- EC2 ----------------
     BastionHost:
       Type: AWS::EC2::Instance
       Properties:
@@ -154,9 +133,6 @@ resources:
         ImageId:
           Fn::Sub: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
         KeyName: ${self:custom.keyName}
-        Tags:
-          - Key: Name
-            Value: ${self:custom.appName}-${self:provider.region}-bastion
 
     # ---------------- S3 ----------------
     MyS3Bucket:
@@ -178,12 +154,51 @@ resources:
           - AttributeName: id
             KeyType: HASH
 
+    # ---------------- CLOUDFRONT (NO DOMAIN) ----------------
+    CloudFrontDistribution:
+      Type: AWS::CloudFront::Distribution
+      Properties:
+        DistributionConfig:
+          Enabled: true
+
+          Origins:
+            - Id: ApiOrigin
+              DomainName:
+                Fn::Sub: ${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+              CustomOriginConfig:
+                OriginProtocolPolicy: https-only
+
+          DefaultCacheBehavior:
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            ForwardedValues:
+              QueryString: true
+              Headers:
+                - Authorization
+
+          # ✅ Default CloudFront SSL (NO ACM needed)
+          ViewerCertificate:
+            CloudFrontDefaultCertificate: true
+
   Outputs:
-    BucketName:
-      Value: !Ref MyS3Bucket
+    CloudFrontURL:
+      Value: !GetAtt CloudFrontDistribution.DomainName
 
-    TableName:
-      Value: !Ref MyDynamoTable
+    ApiGatewayURL:
+      Value:
+        Fn::Sub: https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
 
-    BastionPublicIP:
-      Value: !GetAtt BastionHost.PublicIp
+    CognitoUserPoolId:
+      Value: !Ref CognitoUserPool
+
+    CognitoClientId:
+      Value: !Ref CognitoUserPoolClient

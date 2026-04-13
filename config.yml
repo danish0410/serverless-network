@@ -1,5 +1,5 @@
 app:
-  name: sample
+  name: rajasekar
 
 regions:
   default:
@@ -13,15 +13,18 @@ regions:
     publicSubnet: 10.11.10.0/24
     privateSubnet: 10.11.1.0/24
     instanceType: t3.micro
+    # ami: ami-xxxxxxxxxxxxxxxxx   # Hyderabad AMI
 
   us-east-1:
     cidr: 10.2.0.0/16
     publicSubnet: 10.2.10.0/24
     privateSubnet: 10.2.1.0/24
     instanceType: t3.medium
+    # ami: ami-yyyyyyyyyyyyyyyyy   # N. Virginia AMI
 
   us-east-2:
     cidr: 10.3.0.0/16
     publicSubnet: 10.3.10.0/24
     privateSubnet: 10.3.1.0/24
     instanceType: t3.medium
+    # ami: ami-zzzzzzzzzzzzzzzzz   # Ohio AMI
