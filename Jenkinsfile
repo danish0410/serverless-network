@@ -6,16 +6,16 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'ACTION', choices: ['deploy', 'remove'], description: 'Deploy or remove stack')
-        choice(name: 'STAGE', choices: ['dev', 'staging', 'prod'], description: 'Environment stage')
+        choice(name: 'ACTION', choices: ['deploy', 'remove'])
+        choice(name: 'STAGE', choices: ['dev', 'staging', 'prod'])
 
-        string(name: 'REGIONS', defaultValue: 'ap-south-2', description: 'Comma-separated regions')
-        string(name: 'CIDR_IP', defaultValue: '49.204.141.47/32', description: 'Your IP in CIDR format')
+        string(name: 'REGIONS', defaultValue: 'ap-south-2')
+        string(name: 'CIDR_IP', defaultValue: '49.204.141.47/32')
     }
 
     stages {
 
-        // ✅ FIX 1: CLEAN FIRST
+        // ✅ FIXED ORDER
         stage('Clean Workspace') {
             steps {
                 echo "🧹 Cleaning workspace..."
@@ -23,7 +23,6 @@ pipeline {
             }
         }
 
-        // ✅ THEN CHECKOUT
         stage('Checkout Code') {
             steps {
                 echo "📥 Cloning latest repo..."
@@ -31,39 +30,26 @@ pipeline {
             }
         }
 
-        // ✅ DEBUG (VERY USEFUL)
-        stage('Verify Files') {
-            steps {
-                script {
-                    if (isUnix()) {
-                        sh 'ls -l'
-                    } else {
-                        bat 'dir'
-                    }
-                }
-            }
-        }
-
         stage('Install Dependencies') {
             when { expression { params.ACTION == 'deploy' } }
             steps {
                 script {
-                    echo "📦 Installing dependencies..."
-
                     if (isUnix()) {
                         sh '''
                         npm install
+                        npm install -g serverless
                         '''
                     } else {
                         bat '''
                         npm install
+                        npm install -g serverless
                         '''
                     }
                 }
             }
         }
 
-        stage('Build') {
+        stage('Build TypeScript') {
             when { expression { params.ACTION == 'deploy' } }
             steps {
                 script {
@@ -78,19 +64,24 @@ pipeline {
             }
         }
 
+        // ✅ FIXED HERE
         stage('Debug Serverless Config') {
             steps {
                 script {
                     echo "🔍 Validating serverless.yml..."
 
                     if (isUnix()) {
-                        sh '''
-                        npx serverless print
-                        '''
+                        sh """
+                        npx serverless print \
+                          --stage ${params.STAGE} \
+                          --param="cidrIp=${params.CIDR_IP}"
+                        """
                     } else {
-                        bat '''
-                        npx serverless print
-                        '''
+                        bat """
+                        npx serverless print ^
+                          --stage ${params.STAGE} ^
+                          --param="cidrIp=${params.CIDR_IP}"
+                        """
                     }
                 }
             }
@@ -104,16 +95,7 @@ pipeline {
                     for (region in regions) {
                         region = region.trim()
 
-                        if (!region) {
-                            echo "⚠️ Skipping empty region"
-                            continue
-                        }
-
-                        echo "🌍 Processing region: ${region}"
-
                         if (params.ACTION == 'deploy') {
-
-                            echo "🚀 Deploying to ${region}"
 
                             if (isUnix()) {
                                 sh """
@@ -132,8 +114,6 @@ pipeline {
                             }
 
                         } else {
-
-                            echo "🗑 Removing from ${region}"
 
                             if (isUnix()) {
                                 sh """
@@ -156,14 +136,14 @@ pipeline {
     }
 
     post {
-        success {
-            echo "✅ ${params.ACTION.toUpperCase()} completed successfully"
-        }
-        failure {
-            echo "❌ Pipeline failed"
-        }
         always {
             echo "🧾 Pipeline execution completed"
+        }
+        success {
+            echo "✅ ${params.ACTION} SUCCESS"
+        }
+        failure {
+            echo "❌ Pipeline FAILED"
         }
     }
 }
