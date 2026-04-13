@@ -1,3 +1,5 @@
+frameworkVersion: "~3.40.0"
+
 service: rajasekar-serverless
 
 custom:
@@ -115,7 +117,7 @@ resources:
           - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
-            CidrIp: ${param:cidrIp}
+            CidrIp: ${param:cidrIp, "0.0.0.0/0"}
 
     LambdaSecurityGroup:
       Type: AWS::EC2::SecurityGroup

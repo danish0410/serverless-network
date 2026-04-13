@@ -37,12 +37,12 @@ pipeline {
                     if (isUnix()) {
                         sh '''
                         npm install
-                        npm install -g serverless
+                        npm install -g serverless@3
                         '''
                     } else {
                         bat '''
                         npm install
-                        npm install -g serverless
+                        npm install -g serverless@3
                         '''
                     }
                 }
