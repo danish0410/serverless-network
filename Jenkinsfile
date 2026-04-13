@@ -6,15 +6,24 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'ACTION', choices: ['deploy', 'remove'])
-        choice(name: 'STAGE', choices: ['dev', 'staging', 'prod'])
+        choice(name: 'ACTION', choices: ['deploy', 'remove'], description: 'Deploy or remove stack')
+        choice(name: 'STAGE', choices: ['dev', 'staging', 'prod'], description: 'Environment stage')
 
-        string(name: 'REGIONS', defaultValue: 'ap-south-2')
-        string(name: 'CIDR_IP', defaultValue: '49.204.141.47/32')
+        string(name: 'REGIONS', defaultValue: 'ap-south-2', description: 'Comma-separated regions')
+        string(name: 'CIDR_IP', defaultValue: '49.204.141.47/32', description: 'Your IP in CIDR format')
     }
 
     stages {
 
+        // ✅ FIX 1: CLEAN FIRST
+        stage('Clean Workspace') {
+            steps {
+                echo "🧹 Cleaning workspace..."
+                cleanWs()
+            }
+        }
+
+        // ✅ THEN CHECKOUT
         stage('Checkout Code') {
             steps {
                 echo "📥 Cloning latest repo..."
@@ -22,20 +31,14 @@ pipeline {
             }
         }
 
-        stage('Clean Workspace') {
+        // ✅ DEBUG (VERY USEFUL)
+        stage('Verify Files') {
             steps {
-                cleanWs()
-
                 script {
                     if (isUnix()) {
-                        sh 'rm -rf node_modules dist .serverless package-lock.json'
+                        sh 'ls -l'
                     } else {
-                        bat '''
-                        rmdir /s /q node_modules 2>nul
-                        rmdir /s /q dist 2>nul
-                        rmdir /s /q .serverless 2>nul
-                        del package-lock.json 2>nul
-                        '''
+                        bat 'dir'
                     }
                 }
             }
@@ -45,15 +48,15 @@ pipeline {
             when { expression { params.ACTION == 'deploy' } }
             steps {
                 script {
+                    echo "📦 Installing dependencies..."
+
                     if (isUnix()) {
                         sh '''
                         npm install
-                        npm install -g serverless
                         '''
                     } else {
                         bat '''
                         npm install
-                        npm install -g serverless
                         '''
                     }
                 }
@@ -64,6 +67,8 @@ pipeline {
             when { expression { params.ACTION == 'deploy' } }
             steps {
                 script {
+                    echo "🔨 Building TypeScript..."
+
                     if (isUnix()) {
                         sh 'npx tsc'
                     } else {
@@ -73,17 +78,17 @@ pipeline {
             }
         }
 
-        stage('Debug Config') {
+        stage('Debug Serverless Config') {
             steps {
                 script {
+                    echo "🔍 Validating serverless.yml..."
+
                     if (isUnix()) {
                         sh '''
-                        echo "Printing serverless config..."
                         npx serverless print
                         '''
                     } else {
                         bat '''
-                        echo Printing serverless config...
                         npx serverless print
                         '''
                     }
@@ -99,7 +104,16 @@ pipeline {
                     for (region in regions) {
                         region = region.trim()
 
+                        if (!region) {
+                            echo "⚠️ Skipping empty region"
+                            continue
+                        }
+
+                        echo "🌍 Processing region: ${region}"
+
                         if (params.ACTION == 'deploy') {
+
+                            echo "🚀 Deploying to ${region}"
 
                             if (isUnix()) {
                                 sh """
@@ -118,6 +132,8 @@ pipeline {
                             }
 
                         } else {
+
+                            echo "🗑 Removing from ${region}"
 
                             if (isUnix()) {
                                 sh """
@@ -141,10 +157,13 @@ pipeline {
 
     post {
         success {
-            echo "✅ ${params.ACTION} SUCCESS"
+            echo "✅ ${params.ACTION.toUpperCase()} completed successfully"
         }
         failure {
-            echo "❌ PIPELINE FAILED"
+            echo "❌ Pipeline failed"
+        }
+        always {
+            echo "🧾 Pipeline execution completed"
         }
     }
 }
