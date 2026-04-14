@@ -6,16 +6,15 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'ACTION', choices: ['deploy', 'remove'])
-        choice(name: 'STAGE', choices: ['dev', 'staging', 'prod'])
+        choice(name: 'ACTION', choices: ['deploy', 'remove'], description: 'Deploy or Remove stack')
+        choice(name: 'STAGE', choices: ['dev', 'staging', 'prod'], description: 'Environment')
 
-        string(name: 'REGIONS', defaultValue: 'ap-south-2')
-        string(name: 'CIDR_IP', defaultValue: '49.204.141.47/32')
+        string(name: 'REGIONS', defaultValue: 'ap-south-2', description: 'Comma separated regions')
+        string(name: 'CIDR_IP', defaultValue: '49.204.141.47/32', description: 'Your IP for Bastion access')
     }
 
     stages {
 
-        // ✅ FIXED ORDER
         stage('Clean Workspace') {
             steps {
                 echo "🧹 Cleaning workspace..."
@@ -34,16 +33,32 @@ pipeline {
             when { expression { params.ACTION == 'deploy' } }
             steps {
                 script {
+                    echo "📦 Installing dependencies..."
+
                     if (isUnix()) {
                         sh '''
                         npm install
-                        npm install -g serverless@3
+                        npm install serverless@3 --save-dev
                         '''
                     } else {
                         bat '''
                         npm install
-                        npm install -g serverless@3
+                        npm install serverless@3 --save-dev
                         '''
+                    }
+                }
+            }
+        }
+
+        stage('Verify Serverless') {
+            steps {
+                script {
+                    echo "🔎 Checking Serverless version..."
+
+                    if (isUnix()) {
+                        sh 'npx serverless --version'
+                    } else {
+                        bat 'npx serverless --version'
                     }
                 }
             }
@@ -64,7 +79,6 @@ pipeline {
             }
         }
 
-        // ✅ FIXED HERE
         stage('Debug Serverless Config') {
             steps {
                 script {
@@ -94,6 +108,8 @@ pipeline {
 
                     for (region in regions) {
                         region = region.trim()
+
+                        echo "🌍 Processing region: ${region}"
 
                         if (params.ACTION == 'deploy') {
 
@@ -140,7 +156,7 @@ pipeline {
             echo "🧾 Pipeline execution completed"
         }
         success {
-            echo "✅ ${params.ACTION} SUCCESS"
+            echo "✅ ${params.ACTION.toUpperCase()} SUCCESS"
         }
         failure {
             echo "❌ Pipeline FAILED"

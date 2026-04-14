@@ -1,6 +1,6 @@
-frameworkVersion: "~3.40.0"
+frameworkVersion: "3"
 
-service: rajasekar-serverless
+service: excellent-serverless
 
 custom:
   config: ${file(./config.yml)}
