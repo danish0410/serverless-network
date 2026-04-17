@@ -85,6 +85,9 @@ resources:
       Type: AWS::EC2::VPC
       Properties:
         CidrBlock: ${self:custom.regionConfig.cidr}
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-vpc
 
     PublicSubnet:
       Type: AWS::EC2::Subnet
@@ -96,6 +99,9 @@ resources:
           Fn::Select:
             - 0
             - Fn::GetAZs: ""
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-public-subnet
 
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
@@ -106,6 +112,9 @@ resources:
           Fn::Select:
             - 0
             - Fn::GetAZs: ""
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-private-subnet
 
     # ---------------- SECURITY GROUPS ----------------
     BastionSecurityGroup:
@@ -113,6 +122,9 @@ resources:
       Properties:
         GroupDescription: Bastion SG
         VpcId: !Ref MyVPC
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-bastion-sg
         SecurityGroupIngress:
           - IpProtocol: tcp
             FromPort: 22
@@ -124,6 +136,9 @@ resources:
       Properties:
         GroupDescription: Lambda SG
         VpcId: !Ref MyVPC
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-lambda-sg
 
     # ---------------- EC2 ----------------
     BastionHost:
@@ -136,6 +151,9 @@ resources:
         ImageId:
           Fn::Sub: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}"
         KeyName: ${self:custom.keyName}
+        Tags:
+          - Key: Name
+            Value: ${self:custom.appName}-bastion
 
     # ---------------- S3 ----------------
     MyS3Bucket:
