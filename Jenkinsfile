@@ -29,6 +29,21 @@
             }
         }
 
+        // ✅ OPTION 2: Install Serverless ALWAYS (separate stage)
+        stage('Install Serverless (Required)') {
+            steps {
+                script {
+                    echo "⚙️ Installing Serverless..."
+
+                    if (isUnix()) {
+                        sh 'npm install serverless@3 --save-dev'
+                    } else {
+                        bat 'npm install serverless@3 --save-dev'
+                    }
+                }
+            }
+        }
+
         stage('Install Dependencies') {
             when { expression { params.ACTION == 'deploy' } }
             steps {
